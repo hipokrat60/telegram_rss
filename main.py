@@ -22,6 +22,7 @@ HEADERS = {
 @client.on(events.NewMessage(chats=KANALLAR))
 async def handler(event):
     payload = {
+        "source": "Telegram-RSS",
         "channel": event.chat.title if event.chat else "Bilinmeyen",
         "message": event.raw_text or "",
         "date": str(event.date),
