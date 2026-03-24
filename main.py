@@ -14,9 +14,13 @@ KANALLAR = os.environ.get("KANALLAR").split(',')
 
 client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
+# Sunucuyu kandırmak için tarayıcı kimliği ekliyoruz
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
+
 @client.on(events.NewMessage(chats=KANALLAR))
 async def handler(event):
-    # Metin verilerini hazırla
     payload = {
         "kanal": event.chat.title if event.chat else "Bilinmeyen",
         "mesaj": event.raw_text or "",
@@ -25,25 +29,20 @@ async def handler(event):
     }
 
     files = {}
-    # Eğer mesajda fotoğraf varsa
     if event.photo:
-        print("Görsel indiriliyor...")
-        # Görseli RAM belleğe indir (dosya oluşturmadan)
         photo_bytes = await event.download_media(file=io.BytesIO())
-        photo_bytes.seek(0) # Okuma kafasını başa sar
-        # n8n'e gönderilecek dosya sözlüğü
+        photo_bytes.seek(0)
         files = {'data': ('photo.jpg', photo_bytes, 'image/jpeg')}
 
     try:
-        # Hem metni (data) hem de dosyayı (files) n8n'e gönder
-        # Not: Dosya gönderirken 'json=' yerine 'data=' kullanmak daha sağlıklıdır
-        r = requests.post(WEBHOOK_URL, data=payload, files=files)
+        # HEADERS kısmını burada ekliyoruz
+        r = requests.post(WEBHOOK_URL, data=payload, files=files, headers=HEADERS)
         print(f"n8n iletildi: {r.status_code}")
     except Exception as e:
         print(f"Hata: {e}")
 
 async def main():
-    print("Sistem medya desteği ile çalışıyor...")
+    print("Sistem bot filtresi aşımı ile çalışıyor...")
     await client.start()
     await client.run_until_disconnected()
 
