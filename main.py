@@ -2,6 +2,7 @@ import os
 import requests
 import asyncio
 import io
+import mimetypes
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
@@ -20,8 +21,7 @@ HEADERS = {
 
 @client.on(events.NewMessage(chats=KANALLAR))
 async def handler(event):
-    # Spoiler Kontrolü
-    # Spoiler bilgisi genellikle event.media üzerinde 'spoiler' özniteliği olarak bulunur.
+    # Spoiler kontrolü
     is_spoiler = False
     if event.media:
         is_spoiler = getattr(event.media, 'spoiler', False)
@@ -36,34 +36,45 @@ async def handler(event):
     }
 
     files = {}
-    
-    # event.photo veya event.document (GIF/Video gibi) kontrolü
     if event.media:
-        # Eğer bir medya varsa ve bu bir mesaj (video, foto, gif) ise indir
-        print(f"Medya algılandı (Spoiler: {is_spoiler}). İşleniyor...")
         try:
-            # BytesIO içine indiriyoruz
-            photo_bytes = await event.download_media(file=io.BytesIO())
+            print(f"Medya algılandı. Spoiler: {is_spoiler}. İndiriliyor...")
             
-            if photo_bytes:
-                photo_bytes.seek(0)
-                # Dosya adını ve tipini belirliyoruz. 
-                # Genellikle fotoğraflar için 'image/jpeg' uygundur.
-                files = {'data': ('media_file.jpg', photo_bytes, 'image/jpeg')}
-                print("Medya başarıyla indirildi ve n8n'e hazırlanıyor.")
+            # download_media'da file=bytes kullanmak içeriği doğrudan hafızaya (RAM) alır.
+            # Bu, spoilerlı içeriklerde BytesIO'dan daha kararlıdır.
+            media_data = await client.download_media(event.media, file=bytes)
+            
+            if media_data:
+                # Dosya uzantısını ve tipini tahmin etmeye çalışalım
+                # Varsayılan jpeg, ama video/gif de olabilir
+                file_ext = ".jpg"
+                mime_type = "image/jpeg"
+                
+                # Eğer döküman formatındaysa gerçek uzantıyı alalım
+                if hasattr(event.media, 'document'):
+                    mime_type = event.media.document.mime_type
+                    file_ext = mimetypes.guess_extension(mime_type) or ".jpg"
+
+                files = {
+                    'data': (f'file{file_ext}', media_data, mime_type)
+                }
+                print(f"Medya başarıyla indirildi. Boyut: {len(media_data)} bytes")
+            else:
+                print("Medya verisi boş döndü.")
+
         except Exception as media_err:
             print(f"Medya indirme hatası: {media_err}")
 
     try:
-        # Not: requests kütüphanesi senkrondur. 
-        # Yoğun trafikte 'httpx' veya 'aiohttp' kullanmanız önerilir ancak mevcut yapıyı bozmamak için devam ediyoruz.
-        r = requests.post(WEBHOOK_URL, data=payload, files=files, headers=HEADERS, timeout=30)
-        print(f"n8n iletildi: Durum Kodu {r.status_code}")
+        # n8n'e gönderim
+        # NOT: 'data' parametresi (payload) ve 'files' (medya) aynı anda gönderilir
+        r = requests.post(WEBHOOK_URL, data=payload, files=files, headers=HEADERS, timeout=60)
+        print(f"n8n iletildi: Durum Kodu {r.status_code} - Cevap: {r.text[:100]}")
     except Exception as e:
-        print(f"n8n'e iletim sırasında hata oluştu: {e}")
+        print(f"n8n iletim hatası: {e}")
 
 async def main():
-    print("Sistem spoiler desteği ile çalışıyor...")
+    print("Bot başlatılıyor... Spoiler ve medya desteği aktif.")
     await client.start()
     await client.run_until_disconnected()
 
