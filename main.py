@@ -25,7 +25,7 @@ async def main():
         StringSession(STRING_SESSION), 
         API_ID, 
         API_HASH,
-        device_model="Railway_n8n_Forwarder", # Sticker botundan farklı isim!
+        device_model="webhook_n8n_device", # Sticker botundan farklı isim!
         system_version="Linux_Railway_v2"
     )
 
